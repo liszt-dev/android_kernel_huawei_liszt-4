@@ -31,6 +31,9 @@ int emergdata_write_proc(struct file *file, const char *buffer, unsigned long co
     int ret = -EINVAL;
     char *tmp_buf = NULL;
 
+    if (0 == count)
+        return -EPERM;
+
     if ((tmp_buf = kzalloc(count, GFP_KERNEL)) == NULL)
         return -ENOMEM;
     if (copy_from_user(tmp_buf, buffer, count - 1)) { //should ignore character '\n'

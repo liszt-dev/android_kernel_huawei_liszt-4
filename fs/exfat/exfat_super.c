@@ -557,7 +557,6 @@ static int exfat_create(struct inode *dir, struct dentry *dentry, int mode,
 	inode->i_mtime = inode->i_atime = inode->i_ctime = ts;
 	/* timestamp is already written, so mark_inode_dirty() is unnecessary. */
 
-	dentry->d_time = dentry->d_parent->d_inode->i_version;
 	d_instantiate(dentry, inode);
 
 out:
@@ -633,7 +632,11 @@ static struct dentry *exfat_lookup(struct inode *dir, struct dentry *dentry,
 	}
 
 	alias = d_find_alias(inode);
-	if (alias && !exfat_d_anon_disconn(alias)) {
+	/*
+         * Checking "alias->d_parent == dentry->d_parent" to make sure
+         * FS is not corrupted (especially double linked dir).
+         */
+	if (alias && alias->d_parent == dentry->d_parent && !exfat_d_anon_disconn(alias)) {
 		CHECK_ERR(d_unhashed(alias));
 		if (!S_ISDIR(i_mode))
 			d_move(alias, dentry);
@@ -646,7 +649,6 @@ static struct dentry *exfat_lookup(struct inode *dir, struct dentry *dentry,
 	}
 out:
 	__unlock_super(sb);
-	dentry->d_time = dentry->d_parent->d_inode->i_version;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)
 	dentry->d_op = sb->s_root->d_op;
 	dentry = d_splice_alias(inode, dentry);
@@ -655,9 +657,9 @@ out:
 		dentry->d_time = dentry->d_parent->d_inode->i_version;
 	}
 #else
-	dentry = d_splice_alias(inode, dentry);
-	if (dentry)
-		dentry->d_time = dentry->d_parent->d_inode->i_version;
+	if (!inode)
+		dentry->d_time = dir->i_version;
+	return d_splice_alias(inode, dentry);
 #endif
 	PRINTK("exfat_lookup exited 2\n");
 	return dentry;
@@ -701,6 +703,7 @@ static int exfat_unlink(struct inode *dir, struct dentry *dentry)
 	clear_nlink(inode);
 	inode->i_mtime = inode->i_atime = ts;
 	exfat_detach(inode);
+	dentry->d_time = dir->i_version;
 	remove_inode_hash(inode);
 
 out:
@@ -837,7 +840,6 @@ static int exfat_mkdir(struct inode *dir, struct dentry *dentry, int mode)
 	inode->i_mtime = inode->i_atime = inode->i_ctime = ts;
 	/* timestamp is already written, so mark_inode_dirty() is unneeded. */
 
-	dentry->d_time = dentry->d_parent->d_inode->i_version;
 	d_instantiate(dentry, inode);
 
 out:
@@ -886,6 +888,7 @@ static int exfat_rmdir(struct inode *dir, struct dentry *dentry)
 	clear_nlink(inode);
 	inode->i_mtime = inode->i_atime = ts;
 	exfat_detach(inode);
+	dentry->d_time = dir->i_version;
 	remove_inode_hash(inode);
 
 out:

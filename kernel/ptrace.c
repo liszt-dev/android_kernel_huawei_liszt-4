@@ -253,6 +253,7 @@ static int __ptrace_may_access(struct task_struct *task, unsigned int mode)
 	if (same_thread_group(task, current))
 		return 0;
 	rcu_read_lock();
+
 	if (mode & PTRACE_MODE_FSCREDS) {
 		caller_uid = cred->fsuid;
 		caller_gid = cred->fsgid;
